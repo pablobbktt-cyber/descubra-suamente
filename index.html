@@ -153,8 +153,9 @@ footer .copy{border-top:1px solid rgb(255 255 255/.05);padding:24px;text-align:c
 .qn{border:1px solid rgb(255 255 255/.1);background:rgb(255 255 255/.04);color:var(--mist)}.qn b{color:#fff}
 .qc{background:rgb(99 102 241/.15);color:var(--brand-l)}
 .ql{background:rgb(6 182 212/.1);color:var(--neon-l);margin-left:8px}
-.qcard{border-radius:24px;padding:36px;animation:slideIn .35s var(--ease)}
-.qcard.back{animation-name:slideBack}
+.qcard{border-radius:24px;padding:36px}
+.qcard.anim{animation:slideIn .35s var(--ease)}
+.qcard.anim.back{animation-name:slideBack}
 @keyframes slideBack{from{opacity:0;transform:translateX(-40px)}to{opacity:1;transform:none}}
 .qcard h1{font-family:var(--display);font-weight:600;font-size:clamp(1.15rem,2.4vw,1.5rem);line-height:1.35;color:#fff}
 .hint{margin-top:8px;font-size:14px;color:var(--haze)}
@@ -585,7 +586,7 @@ document.addEventListener("click", (e) => {
 });
 
 /* ═══════════════ QUESTIONÁRIO ═══════════════ */
-let phase = "question", showing = null, confirmSkip = false, enteredAt = Date.now(), clockIv = null, dir = 1, memTimer = null;
+let lastView = "", phase = "question", showing = null, confirmSkip = false, enteredAt = Date.now(), clockIv = null, dir = 1, memTimer = null;
 const recorded = () => Q.filter((q) => S.answers[q.id] !== undefined && S.answers[q.id] !== null).length;
 const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const totalTime = () => Object.values(S.times).reduce((a, b) => a + b, 0);
@@ -617,6 +618,9 @@ function renderQuiz() {
   const v = S.answers[q.id];
   const has = v !== undefined && v !== null;
   const visOpts = q.options.some((o) => o.visual);
+  const viewKey = q.id + ":" + phase;
+  const animate = viewKey !== lastView;
+  lastView = viewKey;
   let body = "";
   if (phase === "intro") {
     body = `<div class="mem"><div class="memico">🧠</div><h2 class="display" style="font-size:1.4rem;color:#fff">Tarefa de memória</h2>
@@ -636,7 +640,7 @@ function renderQuiz() {
   }
   $("#quiz-body").innerHTML = `
     <div class="qtop"><span class="qn">Questão <b>${q.number}</b> de ${TOTAL}</span><div><span class="qc">${CAT_LABEL[q.category]}</span><span class="ql">${LEVEL_LABEL[q.level]}</span></div></div>
-    <section class="qcard glass-strong${dir < 0 ? " back" : ""}" aria-live="polite">${body}</section>
+    <section class="qcard glass-strong${animate ? " anim" : ""}${dir < 0 ? " back" : ""}" aria-live="polite">${body}</section>
     <div class="qnav">
       <button class="btn-ghost" id="prev" ${S.index === 0 ? "disabled" : ""}>← Voltar</button>
       <button class="skip${confirmSkip ? " confirm" : ""}" id="skip" ${phase !== "question" ? "hidden" : ""}>${confirmSkip ? "Confirmar: pular questão" : v === "skip" ? "Pulada ✓" : "Pular questão"}</button>
@@ -658,10 +662,17 @@ function choose(i) {
   if (phase !== "question") return;
   const wasEmpty = S.answers[q.id] === undefined || S.answers[q.id] === null;
   S.answers[q.id] = i;
-  confirmSkip = false;
   save();
-  renderQuiz();
-  if (wasEmpty) setTimeout(() => { if (Q[S.index] === q) goTo(S.index + 1); }, 420);
+  document.querySelectorAll("[data-opt]").forEach((b) => {
+    const on = Number(b.dataset.opt) === i;
+    b.classList.toggle("sel", on);
+    b.setAttribute("aria-checked", on);
+  });
+  $("#next").disabled = false;
+  updateProgress();
+  if (confirmSkip) { confirmSkip = false; renderQuiz(); }
+  else { const sk = $("#skip"); if (sk) sk.textContent = "Pular questão"; }
+  if (wasEmpty) setTimeout(() => { if (Q[S.index] === q && $("#v-quiz").classList.contains("on")) goTo(S.index + 1); }, 320);
 }
 function skip() {
   if (!confirmSkip) { confirmSkip = true; return renderQuiz(); }
